@@ -18,13 +18,21 @@ class CarPathEstimation
 {
 public:
     CarPathEstimation();
+    // Calculate car XY path 
     void carPathCalculate(json input_parameters);
-    vector<double> getCarPathX() const;
-    vector<double> getCarPathY() const;
+    // Get car path x position vector
+    vector<double> getCarPathX() const;           
+    // Get car path y position vector
+    vector<double> getCarPathY() const;           
 
 private:
 
-    void carPathLaneSpeedStateMachine(vector<vector<double>> &sensor_fusion, double car_s, int car_path_prev_size, int &output_lane, double &output_vel) const;
+    // Calculate current car output lane and output velocity out of: 
+    // other car location, car s position, car path size, 
+    // current car lane, current car velocity
+    void carPathLaneSpeedStateMachine(vector<vector<double>> &sensor_fusion, 
+                                      double car_s, int car_path_prev_size, 
+                                      int &output_lane, double &output_vel) const;
 
     typedef struct
     {
@@ -33,35 +41,36 @@ private:
         vector<double> s;
         vector<double> dx;
         vector<double> dy;
-    } Map_waypoints;
+    } Map_waypoints; // structure to store highway points
 
     Map_waypoints map_waypoints;
 
-    bool readMapWaypoints();
+    // Read highway waypoints from csv file
+    bool readMapWaypoints(); 
 
     vector<double> car_path_x;
     vector<double> car_path_y;
 
-    double vel_max    ;
-    double lane_size_m;
-    int    lane_N     ;
-    double cars_gap_m ;
+    double vel_max    ; // car maximum speed
+    double lane_size_m; // one lane size in m 
+    int    lane_N     ; // number of lanes
+    double cars_gap_m ; // minimum gap between cars 
 
-    double lenght_trajectory_m;
+    double lenght_trajectory_m; // one trajectory prediction size, trajectory size = 3*this size
 
-    int    car_lane;
-    double ref_vel;
+    int    car_lane; // current car lane
+    double ref_vel;  // current car velocity
 };
 
 CarPathEstimation::CarPathEstimation() 
 {
     // startup parameters
-    vel_max     = 49.5;
-    lane_size_m = 4;
-    lane_N      = 3;
-    cars_gap_m  = 30;
+    vel_max     = 49.5; // car maximum speed
+    lane_size_m = 4;    // one lane size in m  
+    lane_N      = 3;    // number of lanes
+    cars_gap_m  = 30;   // minimum gap between cars 
 
-    lenght_trajectory_m = 30;
+    lenght_trajectory_m = 30; // one trajectory prediction size, trajectory size = 3*this size
 
     // startup car parameters
     car_lane   = 1; // this should be intialized automatically for more general cases
@@ -115,6 +124,15 @@ void CarPathEstimation::carPathLaneSpeedStateMachine(vector<vector<double>> &sen
     bool lane_right_free           = true;
     bool lane_left_free            = true;
 
+    // this loop is going over all cars (sensor_fusion data)
+    // for each other car there is estimated: 
+    // * its current line :
+    //    * other_car_lane
+    //    * it line compared to main car lane
+    // * out of it: it is known if there is
+    //    * some car too close: too_close_to_car_in_front = true
+    //    * possible to change a line to the left : lane_left_free  = true
+    //    * possible to change a line to the right: lane_right_free = true
     for (int i = 0; i < sensor_fusion.size(); i++)
     {
         float other_car_d = sensor_fusion[i][6];
@@ -150,6 +168,14 @@ void CarPathEstimation::carPathLaneSpeedStateMachine(vector<vector<double>> &sen
         }
     }
 
+    // very simple state machine with 4 states:
+    // 1) it there is car too close in the front:
+    //    a) go to the left  if there is enough space: change final lane 
+    //    b) go to the right if there is enough space: change final lane
+    //    c) stay in the current lane and slow down to keep distance 
+    //       to following car when 1a) and 1b) is not possbile
+    // 2) if can go by the same lane: 
+    //    a) continue and speed up the car to maximum possible speed
     output_vel  = ref_vel;
     output_lane = car_lane;
 
@@ -173,9 +199,8 @@ void CarPathEstimation::carPathLaneSpeedStateMachine(vector<vector<double>> &sen
 void CarPathEstimation::carPathCalculate(json input_parameters)
 {
     // Initial settings
-    // start in lane 1
 
-
+    // initialize new car path 
     car_path_x.clear();
     car_path_y.clear();
 
@@ -216,7 +241,8 @@ void CarPathEstimation::carPathCalculate(json input_parameters)
 
     int    car_final_lane;
     double car_final_vel;
-
+    
+    // predict car lane and velocity for the best position 
     carPathLaneSpeedStateMachine(sensor_fusion, car_s, car_path_prev_size, car_final_lane, car_final_vel);
 
     car_lane = car_final_lane;
