@@ -156,16 +156,16 @@ void CarPathEstimation::carPathLaneSpeedStateMachine(vector<vector<double>> &sen
         other_car_s += static_cast<double>(car_path_prev_size)*0.02*other_car_speed;
 
         // check for other car in the range
-        bool other_car_in_the_range = ((other_car_s > car_s) && ((other_car_s - car_s) < cars_gap_m));
-
+        bool other_car_too_close_to_front = (other_car_s >  car_s) && (other_car_s - car_s) < cars_gap_m; 
+        double cars_gap_back_m = 5;
+        bool other_car_too_close_to_back  = (other_car_s <= car_s) && (car_s - other_car_s) < cars_gap_back_m; 
+        bool other_car_too_close_gap      = other_car_too_close_to_front || other_car_too_close_to_back;
+      
         int car_lane_diff = car_lane - other_car_lane;
-
-        if (other_car_in_the_range)
-        {
-            if (car_lane_diff == 0 ) { too_close_to_car_in_front = true;  } // the same lines
-            if (car_lane_diff == 1 ) { lane_right_free           = false; } // car on the right 
-            if (car_lane_diff == -1) { lane_left_free            = false; } // car on the left
-        }
+        
+        if (car_lane_diff == 0 && other_car_too_close_to_front) { too_close_to_car_in_front = true; std::cout << "F: " << i << " "; }
+        if (car_lane_diff == 1 && other_car_too_close_gap) { lane_left_free  = false; std::cout << "L: " << i << " " << car_s-other_car_s << " ";} // car on the right 
+        if (car_lane_diff ==-1 && other_car_too_close_gap) { lane_right_free = false; std::cout << "R: " << i << " " << car_s-other_car_s << " " ;} // car on the left
     }
 
     // very simple state machine with 4 states:
@@ -178,21 +178,27 @@ void CarPathEstimation::carPathLaneSpeedStateMachine(vector<vector<double>> &sen
     //    a) continue and speed up the car to maximum possible speed
     output_vel  = ref_vel;
     output_lane = car_lane;
+    
+    std::cout << "CL: " << car_lane << " ";
 
     if (too_close_to_car_in_front)
     {
-        if (lane_left_free  && car_lane !=2) { output_lane++;}
+        if (lane_right_free && car_lane < lane_N-1) { output_lane++; std::cout << " CTR " << output_lane << " ";}
         else 
-        if (lane_right_free && car_lane !=0) { output_lane--;}
+        if (lane_left_free  && car_lane > 0       ) { output_lane--; std::cout << " CTL " << output_lane << " ";}
         else
         {
             output_vel -= .224; // slow by a little bit beloow 5 m/s
+            std::cout << " SLOW " << " ";
         }
     }
     else if (output_vel < vel_max)
     {
         output_vel += .224;
+        std::cout << " UP " << " ";
     }
+    
+    std::cout << std::endl;
 
 }
 
